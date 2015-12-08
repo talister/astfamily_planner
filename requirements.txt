@@ -1,0 +1,4 @@
+-f http://buildsba.lco.gtn/python/
+ipython
+numpy
+pyslalib
