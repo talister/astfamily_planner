@@ -271,3 +271,16 @@ def update_MPC_orbit(obj_id_or_page, dbg=False, origin='M'):
 
     return cleaned_elements
     
+def split_asteroid(asteroid):
+    '''Splits names of the form '2014PD25' into '2014 PD25' and zeropads too 
+    short numbers e.g. (63) -> 00063 for use with the MPC service (e.g. via
+    update_mpc_orbit() or for looking up in the downloaded MPCOrb.dat'''
+
+    if len(asteroid) > 5:
+        if asteroid[0:4].isdigit() and asteroid[5].isalpha():
+            asteroid = asteroid[0:4] + ' ' + asteroid[4:].strip()
+    else:
+        if asteroid.isdigit():
+            asteroid = "%05d" % int(asteroid)
+
+    return asteroid
