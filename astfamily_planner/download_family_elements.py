@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 
-from source_subs import update_MPC_orbit
+from source_subs import update_MPC_orbit, split_asteroid
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -37,10 +37,8 @@ for line in family_fh:
         print "Skipped header"
         continue
     chunks = line.strip().split()
-    asteroid = chunks[0]
     # Check if of the form '2014PD25'
-    if len(asteroid) > 5 and asteroid[0:4].isdigit() and asteroid[5].isalpha():
-        asteroid = asteroid[0:4] + ' ' + asteroid[5:]
+    asteroid = split_asteroid(chunks[0])
     print "Downloading elements for", asteroid
     elements = update_MPC_orbit(asteroid)
     bodies.append( { asteroid : elements } )
