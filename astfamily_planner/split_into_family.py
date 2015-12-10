@@ -17,7 +17,7 @@ print >> family_fh, "#ast.name  Hmag   status"
 
 num_family = 0
 
-for line in data_fh.readlines():
+for line in data_fh:
     if line.lstrip()[0] == '%' or line.lstrip()[0] == "#" :
         print "Skipped header"
         continue
