@@ -7,7 +7,8 @@ data_file = os.path.join('../', 'data','all.members')
 try:
     data_fh = open(data_file, 'r')
 except:
-    os.exit()
+    print "Could not open", data_file, ". Exiting."
+    os.sys.exit(-1)
 
 print "Reading", data_file,", looking for family #", family
 family_file =  os.path.join('../', 'data', 'family_' + str(family) + '.members')
