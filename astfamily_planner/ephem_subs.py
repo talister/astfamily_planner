@@ -268,6 +268,9 @@ def compute_ephem(d, orbelems, sitecode, dbg=False, perturb=True, display=False)
     total_motion, sky_pa, ra_motion, dec_motion = compute_sky_motion(sky_vel, delta, dbg)
 
     mag = -99
+    # Compute phase angle, beta (Sun-Target-Earth angle)
+    beta = compute_phase_angle(r, delta, es_Rsq)
+
     if comet == True:
     # Calculate magnitude of comet
     # Here 'H' is the absolute magnitude, 'kappa' the slope parameter defined in Meeus
@@ -276,8 +279,6 @@ def compute_ephem(d, orbelems, sitecode, dbg=False, perturb=True, display=False)
             mag = p_orbelems['H'] + 5.0 * log10(delta) + 2.5 * p_orbelems['G'] * log10(r)
 
     else:
-    # Compute phase angle, beta (Sun-Target-Earth angle)
-        beta = compute_phase_angle(r, delta, es_Rsq)
 
         phi1 = exp(-3.33 * (tan(beta/2.0))**0.63)
         phi2 = exp(-1.87 * (tan(beta/2.0))**1.22)
@@ -292,12 +293,13 @@ def compute_ephem(d, orbelems, sitecode, dbg=False, perturb=True, display=False)
     az_rad, alt_rad = moon_alt_az(d, ra, dec, site_long, site_lat, site_hgt)
     airmass = S.sla_airmas((pi/2.0)-alt_rad)
     alt_deg = degrees(alt_rad)
+    phaseang_deg = degrees(beta)
 
 #    if display: print "  %02.2dh %02.2dm %02.2d.%02.2ds %s%02.2dd %02.2d\' %02.2d.%01.1d\"  V=%.1f  %5.2f %.1f % 7.3f %8.4f" % ( ra_geo_deg[0],
-    if display: print "  %02.2d %02.2d %02.2d.%02.2d %s%02.2d %02.2d %02.2d.%01.1d  V=%.1f  %5.2f %.1f % 7.3f %8.4f" % ( ra_geo_deg[0],
+    if display: print "  %02.2d %02.2d %02.2d.%02.2d %s%02.2d %02.2d %02.2d.%01.1d %02.1f V=%.1f  %5.2f %.1f % 7.3f %8.4f" % ( ra_geo_deg[0],
         ra_geo_deg[1], ra_geo_deg[2], ra_geo_deg[3],
         dsign, dec_geo_deg[0], dec_geo_deg[1], dec_geo_deg[2], dec_geo_deg[3],
-        mag, total_motion, sky_pa, alt_deg, airmass )
+        phaseang_deg, mag, total_motion, sky_pa, alt_deg, airmass )
 
 # Compute South Polar Distance from Dec
     dec_arcsec_decimal = dec_geo_deg[2] + dec_geo_deg[3]
@@ -310,7 +312,7 @@ def compute_ephem(d, orbelems, sitecode, dbg=False, perturb=True, display=False)
     else:
         spd = None
 
-    emp_line = (d, ra, dec, mag, total_motion, alt_deg, spd)
+    emp_line = (d, ra, dec, mag, total_motion, alt_deg, spd, beta)
 
     return emp_line
 
