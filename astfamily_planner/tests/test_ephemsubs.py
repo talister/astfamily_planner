@@ -1,10 +1,44 @@
 import unittest
-
 from datetime import datetime
 
-from astfamily_planner.ephem_subs import call_compute_ephem
+from astfamily_planner.ephem_subs import compute_ephem, call_compute_ephem
 
 class TestComputeEphem(unittest.TestCase):
+
+    def setUp(self):
+        self.elements = { u'abs_mag': 9.56,
+                          u'active': True,
+                          u'arc_length': 39487,
+                          u'argofperih': 177.40017,
+                          u'discovery_date': u'1907-09-06 00:00:00',
+                          u'eccentricity': 0.1028177,
+                          u'elements_type': u'MPC_MINOR_PLANET',
+                          u'epochofel': u'2016-01-13 00:00:00',
+                          u'longascnode': 286.13355,
+                          u'meananom': 250.15749,
+                          u'meandist': 2.4648879,
+                          u'not_seen': 54.97520113715278,
+                          u'num_obs': 1101,
+                          u'orbinc': 5.2401,
+                          u'origin': u'M',
+                          u'slope': 0.15,
+                          u'update_time': u'2015-10-17 00:00:00',
+                          u'updated': True}
+
+    def test_ephem_566_K91_Dec102015(self):
+    
+        site = 'K91'
+        ephem_start = datetime(2015, 12, 10, 18, 0, 0)
+    
+#        expected = ['2015 12 10 18:00', '21 11 39.20', '-12 34 06.3',   58.5  18.8  15.0    0.89    072.8    100  +39   -05   0.00   066  -15]
+
+        expected = (ephem_start, 5.5486346615349067, -0.21936045307765661, 14.970369998574069, 0.89322757180821588, 38.574338332084082, 77.430833333333339)
+
+        emp = compute_ephem(ephem_start, self.elements, site, False, True, False)
+
+        self.assertEqual(expected, emp)
+
+class TestCallComputeEphem(unittest.TestCase):
 
     def setUp(self):
         self.elements = { u'abs_mag': 9.56,
