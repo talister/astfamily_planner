@@ -4,6 +4,9 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from re import sub
 
+from reqdb.client import SchedulerClient
+from reqdb.requests import Request, UserRequest
+
 from time_subs import extract_mpc_epoch
 
 logger = logging.getLogger(__name__)
@@ -284,3 +287,181 @@ def split_asteroid(asteroid):
             asteroid = "%05d" % int(asteroid)
 
     return asteroid
+
+def make_location(params):
+    location = {
+        'telescope_class' : params['pondtelescope'][0:3],
+        'site'        : params['site'].lower(),
+        'observatory' : params['observatory'],
+        'telescope'   : '',
+    }
+
+# Check if the 'pondtelescope' is length 4 (1m0a) rather than length 3, and if
+# so, update the null string set above with a proper telescope
+    if len(params['pondtelescope']) == 4:
+        location['telescope'] = params['pondtelescope']
+
+    return location
+
+def make_target(params):
+    '''Make a target dictionary for the request. RA and Dec need to be
+    decimal degrees'''
+
+    ra_degs = math.degrees(params['ra_rad'])
+    dec_degs = math.degrees(params['dec_rad'])
+    target = {
+               'name' : params['source_id'],
+               'ra'   : ra_degs,
+               'dec'  : dec_degs
+             }
+    return target
+
+def make_moving_target(elements):
+    '''Make a target dictionary for the request from an element set'''
+
+    print elements
+    # Generate initial dictionary of things in common
+    target = {
+                  'name'                : elements['current_name'],
+                  'type'                : 'NON_SIDEREAL',
+                  'scheme'              : elements['elements_type'],
+                  # Moving object param
+                  'epochofel'         : elements['epochofel_mjd'],
+                  'orbinc'            : elements['orbinc'],
+                  'longascnode'       : elements['longascnode'],
+                  'argofperih'        : elements['argofperih'],
+                  'eccentricity'      : elements['eccentricity'],
+            }
+
+    if elements['elements_type'].upper() == 'MPC_COMET':
+        target['epochofperih'] = elements['epochofperih']
+        target['perihdist'] = elements['perihdist']
+    else:
+        target['meandist']  = elements['meandist']
+        target['meananom']  = elements['meananom']
+
+    return target
+
+def make_window(params):
+    '''Make a window. This is simply set to the start and end time from
+    params (i.e. the picked time with the best score plus the block length),
+    formatted into a string.
+    Hopefully this will prevent rescheduling at a different time as the
+    co-ords will be wrong in that case...'''
+    window = {
+              'start' : params['start_time'].strftime('%Y-%m-%dT%H:%M:%S'),
+              'end'   : params['end_time'].strftime('%Y-%m-%dT%H:%M:%S'),
+             }
+
+    return window
+
+def make_molecule(params):
+    molecule = {
+                'exposure_count'  : params['exp_count'],
+                'exposure_time' : params['exp_time'],
+                'bin_x'       : params['binning'],
+                'bin_y'       : params['binning'],
+                'instrument_name'   : params['instrument'],
+                'filter'      : params['filter'],
+                'ag_mode'     : 'Optional', # 0=On, 1=Off, 2=Optional.  Default is 2.
+                'ag_name'     : ''
+
+    }
+    return molecule
+
+def make_proposal(params):
+    '''Construct needed proposal info'''
+
+    proposal = {
+                 'proposal_id'   : params['proposal_id'],
+                 'user_id'       : params['user_id'],
+                 'tag_id'        : params['tag_id'],
+                 'priority'      : params['priority'],
+               }
+    return proposal
+
+def make_constraints(params):
+    constraints = {
+                      'max_airmass' : 2.0,    # 30 deg altitude (The maximum airmass you are willing to accept)
+#                       'max_airmass' : 1.74,   # 35 deg altitude (The maximum airmass you are willing to accept)
+#                      'max_airmass' : 1.55,   # 40 deg altitude (The maximum airmass you are willing to accept)
+#                      'max_airmass' : 2.37,    # 25 deg altitude (The maximum airmass you are willing to accept)
+                    }
+    return constraints    
+def configure_defaults(params):
+
+    site_list = { 'V37' : 'ELP' , 'K92' : 'CPT', 'Q63' : 'COJ', 'W85' : 'LSC', 'W86' : 'LSC', 'F65' : 'OGG', 'E10' : 'COJ' }
+    params['pondtelescope'] = '1m0'
+    params['observatory'] = ''
+    params['site'] = site_list[params['site_code']]
+    params['binning'] = 2
+    params['instrument'] = '1M0-SCICAM-SBIG'
+    params['filter'] = 'w'
+
+    if params['site_code'] == 'W86' or params['site_code'] == 'W87':
+        params['binning'] = 1
+#        params['observatory'] = 'domb'
+        params['instrument'] = '1M0-SCICAM-SINISTRO'
+    elif params['site_code'] == 'F65' or params['site_code'] == 'E10':
+        params['instrument'] =  '2M0-SCICAM-SPECTRAL'
+        params['pondtelescope'] = '2m0'
+        params['filter'] = 'solar'
+
+    return params
+
+def submit_block_to_scheduler(elements, params):
+    request = Request()
+
+    params = configure_defaults(params)
+# Create Location (site, observatory etc) and add to Request
+    location = make_location(params)
+    logger.debug("Location=%s" % location)
+    request.set_location(location)
+# Create Target (pointing) and add to Request
+    if len(elements) > 0:
+        logger.debug("Making a moving object")
+        target = make_moving_target(elements)
+    else:
+        logger.debug("Making a static object")
+        target = make_target(params)
+    logger.debug("Target=%s" % target)
+    request.set_target(target)
+# Create Window and add to Request
+    window = make_window(params)
+    logger.debug("Window=%s" % window)
+    request.add_window(window)
+# Create Molecule and add to Request
+    params['filter'] = 'V'
+    molecule_V = make_molecule(params)
+    params['filter'] = 'I'
+    molecule_I = make_molecule(params)
+    request.add_molecule(molecule_V) # add exposure to the request
+    request.add_molecule(molecule_I) # add exposure to the request
+
+    request.set_note('Submitted by planner')
+    logger.debug("Request=%s" % request)
+
+    constraints = make_constraints(params)
+    request.set_constraints(constraints)
+
+# Add the Request to the outer User Request
+    user_request =  UserRequest(group_id=params['group_id'])
+    user_request.add_request(request)
+    user_request.operator = 'single'
+    proposal = make_proposal(params)
+    user_request.set_proposal(proposal)
+
+# Make an endpoint and submit the thing
+    client = SchedulerClient('http://scheduler1.lco.gtn/requestdb/')
+    response_data = client.submit(user_request)
+    client.print_submit_response()
+    request_numbers =  response_data.get('request_numbers', '')
+    tracking_number =  response_data.get('tracking_number', '')
+#    request_numbers = (-42,)
+    if not tracking_number or not request_numbers:
+        logger.error("No Tracking/Request number received")
+        return False, params
+    request_number = request_numbers[0]
+    logger.info("Tracking, Req number=%s, %s" % (tracking_number,request_number))
+
+    return tracking_number, params
