@@ -26,7 +26,7 @@ def write_bodies_to_element_file(data_path, family, bodies):
 
     return num_written
 
-family = '4_trunc'
+family = '4_trunc_V3'
 data_path =  os.path.join('../', 'data')
 family_file =  os.path.join(data_path, 'family_' + str(family) + '.members')
 family_fh = open(family_file, 'r')

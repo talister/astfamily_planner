@@ -59,22 +59,23 @@ def determine_params(exp_length, site_code, start_time, end_time, group_id):
               }
     return params
 
-family = '4_trunc'
+family = '4_trunc_V3'
 data_path =  os.path.join('../', 'data')
 sites = ['W86',]
-obs_start = datetime(2015, 12, 10, 18, 0, 0)
-obs_end = datetime(2016, 4, 1, 0, 0, 0)
+obs_start = datetime(2015, 12, 17, 0, 0, 0)
+obs_end = datetime(2016, 3, 31, 23, 59, 59)
 obs_step = '60m'
 alt_limit = 30.0
 mag_limit = 21.5
 pixel_scale = 0.389
 max_exptime = 240.0
 nsteps = 10
+submit = True
 
 bodies = read_elements_list(data_path, family)
 print "Read in ", len(bodies), "asteroids and elements."
 
-logging.basicConfig(filename='planner.log', level=logging.INFO)
+logging.basicConfig(filename='planner_V3.log', level=logging.INFO)
 
 line_fmt = "%s    %s %s    %s    %s   %3s   %3s  %4s %s  %5.1f"
 for asteroid in bodies:
@@ -93,7 +94,8 @@ for asteroid in bodies:
         epoch_mjd = datetime2mjd_utc(epochofel)
         ast_elems['epochofel_mjd'] = epoch_mjd
 
-        print "Working on", ast_name, "at", site
+        msg =  "Working on %s at %s" % ( ast_name, site)
+        logging.info(msg)
         print >> ast_fh, "# %s  (H=%2.1f) at %s" % ( ast_name, ast_elems['abs_mag'], site )
         print >> ast_fh, "#UTC date/time          RA (J2000.0) Dec     PhaseA    Vmag   Alt MoonD Score  H.A. Exptime"
         
@@ -124,15 +126,20 @@ for asteroid in bodies:
         else:
             phang_windows = determine_phaseangle_windows(obs_array, nsteps, True)
             window = 0
+            msg =  "Scheduling %d windows for %s at %s" % (  len(phang_windows), ast_name, site)
+            logging.info(msg)
             while window < len(phang_windows):
                 window_start = phang_windows[window][0]
                 window_end = phang_windows[window][1]
 
-                subset = obs_array[np.where((obs_array[:,0] >= window_start) & (obs_array[:,0] <= window_end))]
-                mean_speed = np.mean(subset[:,3])
-                exptime = determine_exptime(mean_speed, pixel_scale, max_exptime)
-                group_id = ast_name + "_" + site + '_phasea#' + str(window+1)
-                print "Window #%2d (%s->%s), speed=%.1f, exptime=%.1f secs" % ( window, window_start, window_end, mean_speed, exptime)
-                params = determine_params(exptime, site, window_start, window_end, group_id)
-                tracking_number, resp_params = submit_block_to_scheduler(ast_elems, params)
+                if window_start != window_end and window_end > datetime.utcnow():
+                    subset = obs_array[np.where((obs_array[:,0] >= window_start) & (obs_array[:,0] <= window_end))]
+                    mean_speed = np.mean(subset[:,3])
+                    mean_mag = np.mean(subset[:,2])
+                    exptime = determine_exptime(mean_speed, pixel_scale, max_exptime)
+                    group_id = ast_name + "_" + site + '_phasea#' + str(window+1)
+                    logging.info("Window #%2d (%s->%s), speed=%.1f, mag=%.1f, exptime=%.1f secs" % ( window, window_start, window_end, mean_speed, mean_mag, exptime))
+                    params = determine_params(exptime, site, window_start, window_end, group_id)
+                    if submit:
+                        tracking_number, resp_params = submit_block_to_scheduler(ast_elems, params)
                 window += 1

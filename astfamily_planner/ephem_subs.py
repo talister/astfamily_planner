@@ -720,8 +720,10 @@ def estimate_exptime(rate, pixscale=0.304, roundtime=10.0):
     return (round_exptime, exptime)
 
 def determine_exptime(speed, pixel_scale, max_exp_time=300.0):
-    (round_exptime, full_exptime) =  estimate_exptime(speed, pixel_scale, 5.0)
-
+    try:
+        (round_exptime, full_exptime) =  estimate_exptime(speed, pixel_scale, 5.0)
+    except ZeroDivisionError:
+        round_exptime = max_exp_time + 1.0
     if ( round_exptime > max_exp_time ):
         logger.debug("Capping exposure time at %.1f seconds (Was %1.f seconds" % \
             (round_exptime, max_exp_time))
