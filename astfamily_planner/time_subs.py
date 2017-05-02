@@ -16,7 +16,11 @@ GNU General Public License for more details.
 '''
 from datetime import datetime,timedelta
 from math import degrees
-import slalib as S
+try:
+    import slalib as S
+except ImportError:
+    import pyslalib.slalib as S
+
 
 def parse_neocp_date(neocp_datestr, dbg=False):
     '''Parse dates from the NEOCP (e.g. '(Nov. 16.81 UT)' ) into a datetime

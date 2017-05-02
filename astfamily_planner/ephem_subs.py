@@ -15,8 +15,11 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 '''
 from datetime import datetime, timedelta, time
-import slalib as S
 from math import sin, cos, tan, asin, acos, atan2, degrees, radians, pi, sqrt, fabs, exp, log10
+try:
+    import slalib as S
+except ImportError:
+    import pyslalib.slalib as S
 from numpy import array, concatenate, zeros
 
 # Local imports
