@@ -11,6 +11,48 @@ from time_subs import extract_mpc_epoch
 
 logger = logging.getLogger(__name__)
 
+def read_mpcorb_file(mpcorb_file, skip_header=True):
+    '''Read a copy of the Minor Planet Center (MPC)'s MPCOrb.dat file, returning
+    the orbit lines in three lists.
+    The file consists of a header (with no comment characters), a line of hyphens,
+    followed by three sections separated by blank lines.  The first section
+    contains the numbered objects, the second section contains the unnumbered
+    objects with perturbed orbit solutions and the third contains the recent
+    1-opposition objects with unperturbed orbit solutions. The three sections are
+    returned in three separate lists.
+    Format of each line is described at:
+    http://www.minorplanetcenter.org/iau/info/MPOrbitFormat.html 
+    At the time of writing (March 2017) the size of the three lists are
+    (488449, 134387, 112855) lines each.'''
+
+    numbered_obj_lines = []
+    multiopp_obj_lines = []
+    singleopp_obj_lines = []
+
+    with open(mpcorb_file) as input_data:
+        if skip_header:
+            # Skip header
+            for line in input_data:
+                if line.strip()[0:10] == '----------':
+                    break
+        # Read numbered objects until blank line
+        for line in input_data:
+            if line.strip() == '':
+                break
+            numbered_obj_lines.append(line.rstrip())
+        # Read multi-opposition objects until blank line
+        for line in input_data:
+            if line.strip() == '':
+                break
+            multiopp_obj_lines.append(line.rstrip())
+        # Read single-opposition objects until blank line
+        for line in input_data:
+            if line.strip() == '':
+                break
+            singleopp_obj_lines.append(line.rstrip())
+
+    return numbered_obj_lines, multiopp_obj_lines, singleopp_obj_lines
+
 def clean_NEOCP_object(page_list):
     '''Parse response from the MPC NEOCP page making sure we only return
     parameters from the 'NEOCPNomin' (nominal orbit)'''
@@ -287,6 +329,24 @@ def split_asteroid(asteroid):
             asteroid = "%05d" % int(asteroid)
 
     return asteroid
+    
+def split_trilling_targets(line):
+
+    number = ''
+    desig = ''
+    chunks = line.rstrip().split('_')
+    if  len(chunks) == 2:
+        desig = chunks[0] + ' ' + chunks[1]
+    elif len(chunks) == 3:
+        number = chunks[0]
+        # Check for a name in chunk 2 or a year
+        if chunks[1].isdigit():
+            desig = chunks[1] + ' ' + chunks[2]
+    elif len(chunks) == 4:
+        # Of the form 1221_Amor_1932_EA1 i.e. <number>_<name>_<desig_desig>
+        number = chunks[0]
+        desig = chunks[2] + ' ' + chunks[3]
+    return (number, desig)
 
 def make_location(params):
     location = {
