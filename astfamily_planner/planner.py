@@ -32,7 +32,7 @@ def determine_phaseangle_windows(obs_array, nsteps=10, dbg=True):
 
     phang_step = 0
     phang_windows = []
-    while phang_step <= nsteps:
+    while phang_step < nsteps:
         phang = obs_array[index_min_phangle][1] + phang_step * phangle_step
         phang_max = phang+(0.1*phangle_step)
         phang_min = phang-(0.1*phangle_step)
@@ -46,7 +46,7 @@ def determine_phaseangle_windows(obs_array, nsteps=10, dbg=True):
     return phang_windows
 
 def determine_params(exp_length, site_code, start_time, end_time, group_id):
-    params = {'proposal_id': 'LCO2015B-016',
+    params = {'proposal_id': 'LCO2017AB-014',
               'user_id': 'tlister@lcogt.net',
               'tag_id': 'LCOGT',
               'priority': 15,
@@ -55,27 +55,28 @@ def determine_params(exp_length, site_code, start_time, end_time, group_id):
               'site_code':  site_code,
               'start_time': start_time,
               'end_time': end_time,
-              'group_id': group_id
+              'group_id': group_id,
+              'filters' : 'rp, gp, ip, zs, rp'
               }
     return params
 
-family = '4_trunc_V3'
+family = 'IR_NEOs'
 data_path =  os.path.join('../', 'data')
 sites = ['W86',]
-obs_start = datetime(2015, 12, 17, 0, 0, 0)
-obs_end = datetime(2016, 3, 31, 23, 59, 59)
+obs_start = datetime(2017,  5,  1, 0, 0, 0)
+obs_end = datetime(2017, 11, 30, 23, 59, 59)
 obs_step = '60m'
 alt_limit = 30.0
-mag_limit = 21.5
+mag_limit = 20.2
 pixel_scale = 0.389
-max_exptime = 240.0
-nsteps = 10
-submit = True
+max_exptime = 300.0
+nsteps = 4
+submit = False
 
 bodies = read_elements_list(data_path, family)
 print "Read in ", len(bodies), "asteroids and elements."
 
-logging.basicConfig(filename='planner_V3.log', level=logging.INFO)
+logging.basicConfig(filename='planner_IR_NEOs_V1.log', level=logging.INFO)
 
 line_fmt = "%s    %s %s    %s    %s   %3s   %3s  %4s %s  %5.1f"
 for asteroid in bodies:
@@ -129,8 +130,11 @@ for asteroid in bodies:
             msg =  "Scheduling %d windows for %s at %s" % (  len(phang_windows), ast_name, site)
             logging.info(msg)
             while window < len(phang_windows):
-                window_start = phang_windows[window][0]
-                window_end = phang_windows[window][1]
+                # Refine windows
+                dark_start, dark_end = determine_darkness_times(site, phang_windows[window][0])
+                window_start = dark_start
+                dark_start, dark_end = determine_darkness_times(site, phang_windows[window][1])
+                window_end = dark_end
 
                 if window_start != window_end and window_end > datetime.utcnow():
                     subset = obs_array[np.where((obs_array[:,0] >= window_start) & (obs_array[:,0] <= window_end))]
@@ -142,4 +146,6 @@ for asteroid in bodies:
                     params = determine_params(exptime, site, window_start, window_end, group_id)
                     if submit:
                         tracking_number, resp_params = submit_block_to_scheduler(ast_elems, params)
+                    else:
+                        print params
                 window += 1

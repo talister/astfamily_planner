@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 
-from source_subs import update_MPC_orbit, split_asteroid
+from source_subs import update_MPC_orbit, split_asteroid, random_delay
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
@@ -26,7 +26,7 @@ def write_bodies_to_element_file(data_path, family, bodies):
 
     return num_written
 
-family = '4_trunc_V3'
+family = 'IR_NEOs'
 data_path =  os.path.join('../', 'data')
 family_file =  os.path.join(data_path, 'family_' + str(family) + '.members')
 family_fh = open(family_file, 'r')
@@ -42,6 +42,8 @@ for line in family_fh:
     print "Downloading elements for", asteroid
     elements = update_MPC_orbit(asteroid)
     bodies.append( { asteroid : elements } )
+    delay = random_delay(10, 20)
+    print "Slept for %d seconds" % delay
 
 family_fh.close()
 print "Wrote", write_bodies_to_element_file(data_path, family, bodies), "elements out"

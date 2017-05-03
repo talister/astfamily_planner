@@ -1,9 +1,11 @@
 import logging
 import urllib2
 from datetime import datetime
-from bs4 import BeautifulSoup
 from re import sub
+from random import randint
+from time import sleep
 
+from bs4 import BeautifulSoup
 from reqdb.client import SchedulerClient
 from reqdb.requests import Request, UserRequest
 
@@ -154,6 +156,25 @@ def clean_NEOCP_object(page_list):
         params = {}
     return params
 
+
+def random_delay(lower_limit=10, upper_limit=20):
+    '''Waits a random number of integer seconds between [lower_limit; default 10]
+    and [upper_limit; default 20]. Useful for slowing down web requests to prevent
+    overloading remote systems. The executed delay is returned.'''
+
+    try:
+        lower_limit = max(int(lower_limit), 0)
+    except ValueError:
+        lower_limit = 10
+    try:
+        upper_limit = int(upper_limit)
+    except ValueError:
+        upper_limit = 20
+
+    delay = randint(lower_limit, upper_limit)
+    sleep(delay)
+
+    return delay
 
 def fetchpage_and_make_soup(url, fakeagent=False, dbg=False, parser="html.parser"):
     '''Fetches the specified URL from <url> and parses it using BeautifulSoup.
@@ -379,7 +400,7 @@ def make_target(params):
 def make_moving_target(elements):
     '''Make a target dictionary for the request from an element set'''
 
-    print elements
+#    print elements
     # Generate initial dictionary of things in common
     target = {
                   'name'                : elements['current_name'],
@@ -442,30 +463,38 @@ def make_proposal(params):
 
 def make_constraints(params):
     constraints = {
-                      'max_airmass' : 2.0,    # 30 deg altitude (The maximum airmass you are willing to accept)
-#                       'max_airmass' : 1.74,   # 35 deg altitude (The maximum airmass you are willing to accept)
-#                      'max_airmass' : 1.55,   # 40 deg altitude (The maximum airmass you are willing to accept)
-#                      'max_airmass' : 2.37,    # 25 deg altitude (The maximum airmass you are willing to accept)
-                    }
+                    'max_airmass' : 2.0,    # 30 deg altitude (The maximum airmass you are willing to accept)
+#                    'max_airmass' : 1.74,   # 35 deg altitude (The maximum airmass you are willing to accept)
+#                    'max_airmass' : 1.55,   # 40 deg altitude (The maximum airmass you are willing to accept)
+#                    'max_airmass' : 2.37,    # 25 deg altitude (The maximum airmass you are willing to accept)
+                    'min_lunar_distance': 30
+                  }
     return constraints    
+
 def configure_defaults(params):
 
     site_list = { 'V37' : 'ELP' , 'K92' : 'CPT', 'Q63' : 'COJ', 'W85' : 'LSC', 'W86' : 'LSC', 'F65' : 'OGG', 'E10' : 'COJ' }
     params['pondtelescope'] = '1m0'
     params['observatory'] = ''
     params['site'] = site_list[params['site_code']]
-    params['binning'] = 2
-    params['instrument'] = '1M0-SCICAM-SBIG'
+    params['binning'] = 1
+    params['instrument'] = '1M0-SCICAM-SINISTRO'
     params['filter'] = 'w'
 
-    if params['site_code'] == 'W86' or params['site_code'] == 'W87':
-        params['binning'] = 1
-#        params['observatory'] = 'domb'
-        params['instrument'] = '1M0-SCICAM-SINISTRO'
-    elif params['site_code'] == 'F65' or params['site_code'] == 'E10':
+#    if params['site_code'] == 'W86' or params['site_code'] == 'W87':
+#        params['binning'] = 1
+##        params['observatory'] = 'domb'
+#        params['instrument'] = '1M0-SCICAM-SINISTRO'
+#    elif params['site_code'] == 'F65' or params['site_code'] == 'E10':
+    if params['site_code'] == 'F65' or params['site_code'] == 'E10':
         params['instrument'] =  '2M0-SCICAM-SPECTRAL'
         params['pondtelescope'] = '2m0'
         params['filter'] = 'solar'
+    elif params['site_code'] == 'Z21' or params['site_code'] == 'W89' or params['site_code'] == 'T04' or params['site_code'] == 'Q59':
+        params['instrument'] =  '0M4-SCICAM-SBIG'
+        params['pondtelescope'] = '0m4'
+        params['filter'] = 'w'
+        params['binning'] = 2 # 1 is the Right Answer...
 
     return params
 
@@ -490,22 +519,30 @@ def submit_block_to_scheduler(elements, params):
     window = make_window(params)
     logger.debug("Window=%s" % window)
     request.add_window(window)
-# Create Molecule and add to Request
-    params['filter'] = 'V'
-    molecule_V = make_molecule(params)
-    params['filter'] = 'I'
-    molecule_I = make_molecule(params)
-    request.add_molecule(molecule_V) # add exposure to the request
-    request.add_molecule(molecule_I) # add exposure to the request
+# Create Molecule(s) and add to Request
+    filters = params.get('filters', 'V, I')
+    for obs_filter in filters.split(','):
+        params['filter'] =  obs_filter.strip()
+        molecule = make_molecule(params)
+        try:
+            request.add_molecule(molecule) # add exposure to the request
+        except InvalidArguments as e:
+            logger.error("Unable to make a molecule for %s at %s" % (params['instrument'], params['site_code']))
+            logger.error("Message from endpoint: %s" % e.message)
+            return False, params
 
     request.set_note('Submitted by planner')
-    logger.debug("Request=%s" % request)
 
     constraints = make_constraints(params)
     request.set_constraints(constraints)
+    logger.debug("Request=%s" % request)
 
 # Add the Request to the outer User Request
-    user_request =  UserRequest(group_id=params['group_id'])
+# If site is ELP, increase IPP value
+    ipp_value = 1.00
+    if params['site_code'] == 'V37':
+        ipp_value = 1.01
+    user_request =  UserRequest(group_id=params['group_id'], ipp_value=ipp_value)
     user_request.add_request(request)
     user_request.operator = 'single'
     proposal = make_proposal(params)
@@ -515,6 +552,7 @@ def submit_block_to_scheduler(elements, params):
     client = SchedulerClient('http://scheduler1.lco.gtn/requestdb/')
     response_data = client.submit(user_request)
     client.print_submit_response()
+#    response_data = {}
     request_numbers =  response_data.get('request_numbers', '')
     tracking_number =  response_data.get('tracking_number', '')
 #    request_numbers = (-42,)
