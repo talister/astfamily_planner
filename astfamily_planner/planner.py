@@ -121,8 +121,11 @@ for asteroid in bodies:
             d = d + timedelta(days=1)
 
         ast_fh.close()
-        if num_written == 0:
-            logging.warn("No lines of output produced for %s. Removing empty output file %s." % (ast_name, ast_file))
+        if num_written < nsteps:
+            lines_msg, file_msg = ("Not enough", "")
+            if num_written == 0:
+                lines_msg, file_msg = ("No", "empty")
+            logging.warn("%s lines of output produced for %s. Removing %s output file %s." % (lines_msg, ast_name, file_msg, ast_file))
             os.remove(ast_file)
         else:
             phang_windows = determine_phaseangle_windows(obs_array, nsteps, True)
