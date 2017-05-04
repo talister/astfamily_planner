@@ -7,7 +7,7 @@ from time import sleep
 
 from bs4 import BeautifulSoup
 from reqdb.client import SchedulerClient
-from reqdb.requests import Request, UserRequest
+from reqdb.requests import Request, UserRequest, NoRiseSetWindowsException
 
 from time_subs import extract_mpc_epoch
 
@@ -550,7 +550,15 @@ def submit_block_to_scheduler(elements, params):
 
 # Make an endpoint and submit the thing
     client = SchedulerClient('http://scheduler1.lco.gtn/requestdb/')
-    response_data = client.submit(user_request)
+    try:
+        response_data = client.submit(user_request)
+    except NoRiseSetWindowsException:
+        response_data = {}
+        msg = "Object does not have any visibility"
+        logger.error(msg)
+        params['error_msg'] = msg
+        return False, params
+
     client.print_submit_response()
 #    response_data = {}
     request_numbers =  response_data.get('request_numbers', '')

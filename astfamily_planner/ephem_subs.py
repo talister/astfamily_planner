@@ -286,10 +286,10 @@ def compute_ephem(d, orbelems, sitecode, dbg=False, perturb=True, display=False)
         phi1 = exp(-3.33 * (tan(beta/2.0))**0.63)
         phi2 = exp(-1.87 * (tan(beta/2.0))**1.22)
 
-    #    logger.debug("Phi1, phi2=%s" % phi1,phi2)
+        logger.debug("Phi1, phi2=%s %s" % (phi1,phi2))
 
     # Calculate magnitude of object
-        if p_orbelems['H'] and p_orbelems['G']:
+        if p_orbelems['H'] and p_orbelems['G'] and phi1 != 0.0 and phi2 != 0.0:
             mag = p_orbelems['H'] + 5.0 * log10(r * delta) - \
                 (2.5 * log10((1.0 - p_orbelems['G'])*phi1 + p_orbelems['G']*phi2))
 
